@@ -11,17 +11,19 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/github/gh-ost/go/base"
-	"github.com/github/gh-ost/go/binlog"
-	"github.com/github/gh-ost/go/mysql"
-	"github.com/github/gh-ost/go/sql"
-
 	"github.com/outbrain/golib/log"
 	"github.com/outbrain/golib/sqlutils"
+	"strings"
+	"github.com/errors"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/mysql"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/base"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/sql"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/binlog"
 )
 
 const (
 	atomicCutOverMagicHint = "ghost-cut-over-sentry"
+	masterPosWaitSec = 360
 )
 
 type dmlBuildResult struct {
@@ -57,13 +59,15 @@ type Applier struct {
 	singletonDB       *gosql.DB
 	migrationContext  *base.MigrationContext
 	finishedMigrating int64
+	inspector 		  *Inspector
 }
 
-func NewApplier(migrationContext *base.MigrationContext) *Applier {
+func NewApplier(migrationContext *base.MigrationContext, i *Inspector) *Applier {
 	return &Applier{
 		connectionConfig:  migrationContext.ApplierConnectionConfig,
 		migrationContext:  migrationContext,
 		finishedMigrating: 0,
+		inspector:i,
 	}
 }
 
@@ -197,6 +201,27 @@ func (this *Applier) AlterGhost() error {
 		sql.EscapeName(this.migrationContext.DatabaseName),
 		sql.EscapeName(this.migrationContext.GetGhostTableName()),
 	)
+
+	autoIncrement, err := mysql.GetOriginalAutoIncrementValue(this.db, this.migrationContext.DatabaseName, this.migrationContext.OriginalTableName)
+	if err != nil {
+		log.Errorf("query original table auto_increment value err :%s", err)
+	}
+	if autoIncrement.Valid {
+		log.Infof("got original table auto_increment value is %d, would reset to gho table", autoIncrement.Int64)
+		resetQuery := fmt.Sprintf(`alter /* gh-ost */ table %s.%s AUTO_INCREMENT = %d`,sql.EscapeName(this.migrationContext.DatabaseName), sql.EscapeName(this.migrationContext.GetGhostTableName()), autoIncrement.Int64)
+		_, err := sqlutils.ExecNoPrepare(this.db, resetQuery)
+		if err != nil {
+			log.Errorf("reset auto_increment value failed on gho table, %s",err)
+		} else {
+			log.Infof("reset auto_increment value to gho table done")
+		}
+	}
+
+	if strings.ToLower(this.migrationContext.AlterStatement) == "noop" {
+		log.Infof("Noop, just rebuild the table and not change the table structure")
+		return nil
+	}
+
 	log.Debugf("ALTER statement: %s", query)
 	if _, err := sqlutils.ExecNoPrepare(this.db, query); err != nil {
 		return err
@@ -356,11 +381,19 @@ func (this *Applier) ExecuteThrottleQuery() (int64, error) {
 // ReadMigrationMinValues returns the minimum values to be iterated on rowcopy
 func (this *Applier) ReadMigrationMinValues(uniqueKey *sql.UniqueKey) error {
 	log.Debugf("Reading migration range according to key: %s", uniqueKey.Name)
-	query, err := sql.BuildUniqueKeyMinValuesPreparedQuery(this.migrationContext.DatabaseName, this.migrationContext.OriginalTableName, &uniqueKey.Columns)
+	query, err := sql.BuildUniqueKeyMinValuesPreparedQuery(this.migrationContext.DatabaseName, this.migrationContext.OriginalTableName, this.migrationContext.Where, &uniqueKey.Columns, this.migrationContext.ForceQueryMigrationRangeValuesOnMaster, this.migrationContext.AllowedRunningOnMaster)
 	if err != nil {
 		return err
 	}
-	rows, err := this.db.Query(query)
+
+	var rows *gosql.Rows
+
+	if this.migrationContext.Where != "" && !this.migrationContext.ForceQueryMigrationRangeValuesOnMaster && !this.migrationContext.AllowedRunningOnMaster {
+		rows, err = this.inspector.db.Query(query) // query migration range value on slave node with where-reserve-clause
+	} else {
+		rows, err = this.db.Query(query) // query on master like usual
+	}
+
 	if err != nil {
 		return err
 	}
@@ -377,11 +410,19 @@ func (this *Applier) ReadMigrationMinValues(uniqueKey *sql.UniqueKey) error {
 // ReadMigrationMaxValues returns the maximum values to be iterated on rowcopy
 func (this *Applier) ReadMigrationMaxValues(uniqueKey *sql.UniqueKey) error {
 	log.Debugf("Reading migration range according to key: %s", uniqueKey.Name)
-	query, err := sql.BuildUniqueKeyMaxValuesPreparedQuery(this.migrationContext.DatabaseName, this.migrationContext.OriginalTableName, &uniqueKey.Columns)
+	query, err := sql.BuildUniqueKeyMaxValuesPreparedQuery(this.migrationContext.DatabaseName, this.migrationContext.OriginalTableName, this.migrationContext.Where, &uniqueKey.Columns, this.migrationContext.ForceQueryMigrationRangeValuesOnMaster, this.migrationContext.AllowedRunningOnMaster)
 	if err != nil {
 		return err
 	}
-	rows, err := this.db.Query(query)
+
+	var rows *gosql.Rows
+
+	if this.migrationContext.Where != "" && !this.migrationContext.ForceQueryMigrationRangeValuesOnMaster && !this.migrationContext.AllowedRunningOnMaster {
+		rows, err = this.inspector.db.Query(query) // query migration range value on slave node with where-reserve-clause
+	} else {
+		rows, err = this.db.Query(query) // query on master like usual
+	}
+
 	if err != nil {
 		return err
 	}
@@ -395,8 +436,37 @@ func (this *Applier) ReadMigrationMaxValues(uniqueKey *sql.UniqueKey) error {
 	return err
 }
 
+func (this *Applier) getMasterStatus()(binfile string, binpos int, err error) {
+	return mysql.GetMasterStatus(this.db)
+}
+
 // ReadMigrationRangeValues reads min/max values that will be used for rowcopy
 func (this *Applier) ReadMigrationRangeValues() error {
+
+	if this.migrationContext.Where != "" && !this.migrationContext.ForceQueryMigrationRangeValuesOnMaster && !this.migrationContext.AllowedRunningOnMaster {
+		binfile, binpos, err := this.getMasterStatus()
+		if err != nil {
+			return err
+		}
+
+		for i := 0; i < masterPosWaitSec; i++ {
+			catched, err := this.inspector.SlaveCatchedUp(binfile, binpos)
+			if err != nil {
+				return err
+			}
+
+			if catched {
+				break
+			}
+
+			if i == masterPosWaitSec {
+				return errors.Errorf("slave cannot catch up in %d seconds", masterPosWaitSec)
+			}
+			log.Infof("slave is catching up ..")
+			time.Sleep(time.Second)
+		}
+	}
+
 	if err := this.ReadMigrationMinValues(this.migrationContext.UniqueKey); err != nil {
 		return err
 	}
@@ -463,6 +533,7 @@ func (this *Applier) ApplyIterationInsertQuery() (chunkSize int64, rowsAffected 
 		this.migrationContext.DatabaseName,
 		this.migrationContext.OriginalTableName,
 		this.migrationContext.GetGhostTableName(),
+		this.migrationContext.Where,
 		this.migrationContext.SharedColumns.Names(),
 		this.migrationContext.MappedSharedColumns.Names(),
 		this.migrationContext.UniqueKey.Name,

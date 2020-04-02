@@ -12,10 +12,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/github/gh-ost/go/sql"
+
 
 	"github.com/outbrain/golib/log"
 	"github.com/outbrain/golib/sqlutils"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/sql"
 )
 
 const MaxTableNameLength = 64
@@ -72,6 +73,21 @@ func GetReplicationLagFromSlaveStatus(informationSchemaDb *gosql.DB) (replicatio
 	})
 
 	return replicationLag, err
+}
+
+func GetOriginalAutoIncrementValue(informationSchemaDb *gosql.DB, db, tbl string) (autoIncrement gosql.NullInt64, err error) {
+	query := fmt.Sprintf(`select auto_increment from information_schema.tables where table_schema='%s' and table_name='%s'`,db, tbl)
+	err = informationSchemaDb.QueryRow(query).Scan(&autoIncrement)
+	return autoIncrement, err
+}
+
+func GetMasterStatus(informationSchemaDb *gosql.DB) (binfile string, binpos int, err error) {
+	err = sqlutils.QueryRowsMap(informationSchemaDb, `show master status`, func(m sqlutils.RowMap) error {
+		binfile = m.GetString("File")
+		binpos = m.GetInt("Position")
+		return nil
+	})
+	return binfile, binpos, err
 }
 
 func GetMasterKeyFromSlaveStatus(connectionConfig *ConnectionConfig) (masterKey *InstanceKey, err error) {

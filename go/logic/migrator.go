@@ -14,10 +14,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/github/gh-ost/go/base"
-	"github.com/github/gh-ost/go/binlog"
-	"github.com/github/gh-ost/go/mysql"
-	"github.com/github/gh-ost/go/sql"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/mysql"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/base"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/sql"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/binlog"
 
 	"github.com/outbrain/golib/log"
 )
@@ -1046,7 +1046,7 @@ func (this *Migrator) initiateThrottler() error {
 }
 
 func (this *Migrator) initiateApplier() error {
-	this.applier = NewApplier(this.migrationContext)
+	this.applier = NewApplier(this.migrationContext, this.inspector)
 	if err := this.applier.InitDBConnections(); err != nil {
 		return err
 	}

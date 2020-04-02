@@ -13,8 +13,8 @@ import (
 	"path/filepath"
 	"sync/atomic"
 
-	"github.com/github/gh-ost/go/base"
 	"github.com/outbrain/golib/log"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/base"
 )
 
 const (

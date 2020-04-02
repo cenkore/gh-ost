@@ -9,14 +9,15 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/github/gh-ost/go/base"
-	"github.com/github/gh-ost/go/mysql"
-	"github.com/github/gh-ost/go/sql"
+
 
 	"github.com/outbrain/golib/log"
 	gomysql "github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/replication"
 	"golang.org/x/net/context"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/mysql"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/base"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/sql"
 )
 
 type GoMySQLReader struct {

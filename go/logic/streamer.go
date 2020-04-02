@@ -12,12 +12,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/github/gh-ost/go/base"
-	"github.com/github/gh-ost/go/binlog"
-	"github.com/github/gh-ost/go/mysql"
+
 
 	"github.com/outbrain/golib/log"
 	"github.com/outbrain/golib/sqlutils"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/binlog"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/mysql"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/base"
 )
 
 type BinlogEventListener struct {

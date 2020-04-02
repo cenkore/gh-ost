@@ -7,7 +7,8 @@ package binlog
 
 import (
 	"fmt"
-	"github.com/github/gh-ost/go/mysql"
+
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/mysql"
 )
 
 // BinlogEntry describes an entry in the binary log

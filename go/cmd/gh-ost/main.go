@@ -12,12 +12,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/github/gh-ost/go/base"
-	"github.com/github/gh-ost/go/logic"
+
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/outbrain/golib/log"
 
 	"golang.org/x/crypto/ssh/terminal"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/base"
+	"git.dev.sh.ctripcorp.com/ops_dba_developers/gh-ost/go/logic"
 )
 
 var AppVersion string
@@ -61,7 +62,7 @@ func main() {
 
 	flag.StringVar(&migrationContext.DatabaseName, "database", "", "database name (mandatory)")
 	flag.StringVar(&migrationContext.OriginalTableName, "table", "", "table name (mandatory)")
-	flag.StringVar(&migrationContext.AlterStatement, "alter", "", "alter statement (mandatory)")
+	flag.StringVar(&migrationContext.AlterStatement, "alter", "", "alter statement (mandatory), you can specify Noop if don't change the table structure")
 	flag.BoolVar(&migrationContext.CountTableRows, "exact-rowcount", false, "actually count table rows as opposed to estimate them (results in more accurate progress estimation)")
 	flag.BoolVar(&migrationContext.ConcurrentCountTableRows, "concurrent-rowcount", true, "(with --exact-rowcount), when true (default): count rows after row-copy begins, concurrently, and adjust row estimate later on; when false: first count rows, then start row copy")
 	flag.BoolVar(&migrationContext.AllowedRunningOnMaster, "allow-on-master", false, "allow this migration to run directly on master. Preferably it would run on a replica")
@@ -133,6 +134,9 @@ func main() {
 	flag.StringVar(&migrationContext.ForceTmpTableName, "force-table-names", "", "table name prefix to be used on the temporary tables")
 	flag.CommandLine.SetOutput(os.Stdout)
 
+	flag.StringVar(&migrationContext.Where,"where-reserve-clause","","used for only copy where clause stmt values")
+	flag.BoolVar(&migrationContext.ForceQueryMigrationRangeValuesOnMaster,"force-query-migration-range-values-on-master",false,"if you use -where-reserve-clause flag, by default, will query initial migration range values with corresponding where stmt on slave. Also you can specify this flag to true, it will query on master and not care where clause stmt like usual and the where clause would be used at copy rows to gho table")
+	flag.BoolVar(&migrationContext.NotApplyOriginAutoIncrement, "not-apply-origin-auto-increment", false, "specify this flag to true, when you wanna reset table auto-increment")
 	flag.Parse()
 
 	if *checkFlag {
