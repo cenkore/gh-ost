@@ -212,7 +212,7 @@ type MigrationContext struct {
 
 	Where 							string
 	ForceQueryMigrationRangeValuesOnMaster 	bool
-	NotApplyOriginAutoIncrement 	bool
+	ResetOriginalAutoIncrement 	bool
 
 }
 

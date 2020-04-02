@@ -136,7 +136,7 @@ func main() {
 
 	flag.StringVar(&migrationContext.Where,"where-reserve-clause","","used for only copy where clause stmt values")
 	flag.BoolVar(&migrationContext.ForceQueryMigrationRangeValuesOnMaster,"force-query-migration-range-values-on-master",false,"if you use -where-reserve-clause flag, by default, will query initial migration range values with corresponding where stmt on slave. Also you can specify this flag to true, it will query on master and not care where clause stmt like usual and the where clause would be used at copy rows to gho table")
-	flag.BoolVar(&migrationContext.NotApplyOriginAutoIncrement, "not-apply-origin-auto-increment", false, "specify this flag to true, when you wanna reset table auto-increment")
+	flag.BoolVar(&migrationContext.ResetOriginalAutoIncrement, "reset-original-auto-increment", false, "specify this flag to true, when you wanna reset table auto-increment")
 	flag.Parse()
 
 	if *checkFlag {

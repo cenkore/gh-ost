@@ -201,19 +201,20 @@ func (this *Applier) AlterGhost() error {
 		sql.EscapeName(this.migrationContext.DatabaseName),
 		sql.EscapeName(this.migrationContext.GetGhostTableName()),
 	)
-
-	autoIncrement, err := mysql.GetOriginalAutoIncrementValue(this.db, this.migrationContext.DatabaseName, this.migrationContext.OriginalTableName)
-	if err != nil {
-		log.Errorf("query original table auto_increment value err :%s", err)
-	}
-	if autoIncrement.Valid {
-		log.Infof("got original table auto_increment value is %d, would reset to gho table", autoIncrement.Int64)
-		resetQuery := fmt.Sprintf(`alter /* gh-ost */ table %s.%s AUTO_INCREMENT = %d`,sql.EscapeName(this.migrationContext.DatabaseName), sql.EscapeName(this.migrationContext.GetGhostTableName()), autoIncrement.Int64)
-		_, err := sqlutils.ExecNoPrepare(this.db, resetQuery)
+	if !this.migrationContext.ResetOriginalAutoIncrement {
+		autoIncrement, err := mysql.GetOriginalAutoIncrementValue(this.db, this.migrationContext.DatabaseName, this.migrationContext.OriginalTableName)
 		if err != nil {
-			log.Errorf("reset auto_increment value failed on gho table, %s",err)
-		} else {
-			log.Infof("reset auto_increment value to gho table done")
+			log.Errorf("query original table auto_increment value err :%s", err)
+		}
+		if autoIncrement.Valid {
+			log.Infof("got original table auto_increment value is %d, would reset to gho table", autoIncrement.Int64)
+			resetQuery := fmt.Sprintf(`alter /* gh-ost */ table %s.%s AUTO_INCREMENT = %d`,sql.EscapeName(this.migrationContext.DatabaseName), sql.EscapeName(this.migrationContext.GetGhostTableName()), autoIncrement.Int64)
+			_, err := sqlutils.ExecNoPrepare(this.db, resetQuery)
+			if err != nil {
+				log.Errorf("reset auto_increment value failed on gho table, %s",err)
+			} else {
+				log.Infof("reset auto_increment value to gho table done")
+			}
 		}
 	}
 
