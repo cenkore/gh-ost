@@ -554,10 +554,16 @@ func (this *Applier) ApplyIterationInsertQuery() (chunkSize int64, rowsAffected 
 			return nil, err
 		}
 		defer tx.Rollback()
-		sessionQuery := fmt.Sprintf(`SET
-			SESSION time_zone = '%s',
-			sql_mode = CONCAT(@@session.sql_mode, ',STRICT_ALL_TABLES')
-			`, this.migrationContext.ApplierTimeZone)
+		//sessionQuery := fmt.Sprintf(`SET
+		//	SESSION time_zone = '%s',
+		//	sql_mode = CONCAT(@@session.sql_mode, ',STRICT_ALL_TABLES')
+		//	`, this.migrationContext.ApplierTimeZone)
+
+		sessionQuery := fmt.Sprintf(`SET SESSION time_zone = '%s'`, this.migrationContext.ApplierTimeZone)
+		if !this.migrationContext.SkipStrictMode {
+			sessionQuery += ", sql_mode = CONCAT(@@session.sql_mode, ',STRICT_ALL_TABLES')"
+		}
+
 		if _, err := tx.Exec(sessionQuery); err != nil {
 			return nil, err
 		}
@@ -1077,10 +1083,16 @@ func (this *Applier) ApplyDMLEventQuery(dmlEvent *binlog.BinlogDMLEvent) error {
 				tx.Rollback()
 				return err
 			}
-			sessionQuery := `SET
-			SESSION time_zone = '+00:00',
-			sql_mode = CONCAT(@@session.sql_mode, ',STRICT_ALL_TABLES')
-			`
+			// sessionQuery := `SET
+			// SESSION time_zone = '+00:00',
+			// sql_mode = CONCAT(@@session.sql_mode, ',STRICT_ALL_TABLES')
+			// `
+
+			sessionQuery := fmt.Sprintf("SET SESSION time_zone = '+00:00'")
+			if !this.migrationContext.SkipStrictMode {
+				sessionQuery += ", sql_mode = CONCAT(@@session.sql_mode, ',STRICT_ALL_TABLES')"
+			}
+
 			if _, err := tx.Exec(sessionQuery); err != nil {
 				return rollback(err)
 			}
@@ -1122,10 +1134,15 @@ func (this *Applier) ApplyDMLEventQueries(dmlEvents [](*binlog.BinlogDMLEvent)) 
 			return err
 		}
 
-		sessionQuery := `SET
-			SESSION time_zone = '+00:00',
-			sql_mode = CONCAT(@@session.sql_mode, ',STRICT_ALL_TABLES')
-			`
+		// sessionQuery := `SET
+		// 	SESSION time_zone = '+00:00',
+		// 	sql_mode = CONCAT(@@session.sql_mode, ',STRICT_ALL_TABLES')
+		// 	`
+		sessionQuery := "SET SESSION time_zone = '+00:00'"
+		if !this.migrationContext.SkipStrictMode {
+			sessionQuery += ", sql_mode = CONCAT(@@session.sql_mode, ',STRICT_ALL_TABLES')"
+		}
+
 		if _, err := tx.Exec(sessionQuery); err != nil {
 			return rollback(err)
 		}
