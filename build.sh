@@ -63,7 +63,7 @@ main() {
 
   mkdir -p ${buildpath}
   rm -rf ${buildpath:?}/*
-  build macOS osx darwin amd64
+  # build macOS osx darwin amd64
   build GNU/Linux linux linux amd64
 
   echo "Binaries found in:"

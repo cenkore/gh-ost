@@ -16,12 +16,14 @@ var (
 	renameColumnRegexp   = regexp.MustCompile(`(?i)\bchange\s+(column\s+|)([\S]+)\s+([\S]+)\s+`)
 	dropColumnRegexp     = regexp.MustCompile(`(?i)\bdrop\s+(column\s+|)([\S]+)$`)
 	renameTableRegexp    = regexp.MustCompile(`(?i)\brename\s+(to|as)\s+`)
+	uniqueKeyRegexp 	 = regexp.MustCompile(`(?i)\badd\s+unique\s+(key|index|)\s+`)
 )
 
 type Parser struct {
 	columnRenameMap map[string]string
 	droppedColumns  map[string]bool
 	isRenameTable   bool
+	isAddUniqueKey	bool
 }
 
 func NewParser() *Parser {
@@ -94,6 +96,12 @@ func (this *Parser) parseAlterToken(alterToken string) (err error) {
 			this.isRenameTable = true
 		}
 	}
+	{
+		// add unique key
+		if uniqueKeyRegexp.MatchString(alterToken) {
+			this.isAddUniqueKey = true
+		}
+	}
 	return nil
 }
 
@@ -126,4 +134,8 @@ func (this *Parser) DroppedColumnsMap() map[string]bool {
 
 func (this *Parser) IsRenameTable() bool {
 	return this.isRenameTable
+}
+
+func (this *Parser) IsAddUniqueKey() bool {
+	return this.isAddUniqueKey
 }

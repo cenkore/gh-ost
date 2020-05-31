@@ -214,7 +214,10 @@ type MigrationContext struct {
 	Where 							string
 	ForceQueryMigrationRangeValuesOnMaster 	bool
 	ResetOriginalAutoIncrement 	bool
+	// AllowConflictDataDiscardUniqueKey bool
+	// AllowConflictDataDiscardPercent int
 
+	IsAddUniqueKey	bool
 }
 
 type ContextConfig struct {
