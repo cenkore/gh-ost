@@ -481,6 +481,9 @@ func (this *MigrationContext) SetChunkSize(chunkSize int64) {
 	if chunkSize > 100000 {
 		chunkSize = 100000
 	}
+	if this.IsAddUniqueKey && chunkSize > 1000 {
+		chunkSize = 1000
+	}
 	atomic.StoreInt64(&this.ChunkSize, chunkSize)
 }
 

@@ -198,3 +198,12 @@ func TestParseAlterStatementRenameTable(t *testing.T) {
 		test.S(t).ExpectTrue(parser.isRenameTable)
 	}
 }
+
+func TestParseAlertStatementAddUniqueKey(t *testing.T) {
+	parser := NewParser()
+	statement := "add cOlumn `b` int null default 0 comment ',x,x,-,' after `a`, add unique kEy `backquote`(`a`,`b`), chAnge `c1` `c1` varchar(100) null default '' comment 't,es,t'"
+	err := parser.ParseAlterStatement(statement)
+	test.S(t).ExpectNil(err)
+	test.S(t).ExpectTrue(parser.isAddUniqueKey)
+
+}

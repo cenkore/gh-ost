@@ -16,7 +16,7 @@ var (
 	renameColumnRegexp   = regexp.MustCompile(`(?i)\bchange\s+(column\s+|)([\S]+)\s+([\S]+)\s+`)
 	dropColumnRegexp     = regexp.MustCompile(`(?i)\bdrop\s+(column\s+|)([\S]+)$`)
 	renameTableRegexp    = regexp.MustCompile(`(?i)\brename\s+(to|as)\s+`)
-	uniqueKeyRegexp 	 = regexp.MustCompile(`(?i)\badd\s+unique\s+(key|index|)\s+`)
+	uniqueKeyRegexp 	 = regexp.MustCompile(`(?i)\badd\s+unique\s+(key|index)?\s*`)
 )
 
 type Parser struct {

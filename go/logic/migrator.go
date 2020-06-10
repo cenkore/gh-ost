@@ -269,6 +269,12 @@ func (this *Migrator) validateStatement() (err error) {
 	}
 	this.migrationContext.DroppedColumnsMap = this.parser.DroppedColumnsMap()
 	this.migrationContext.IsAddUniqueKey = this.parser.IsAddUniqueKey()
+
+	if this.migrationContext.IsAddUniqueKey && this.migrationContext.ChunkSize > 1000 {
+		this.migrationContext.ChunkSize = 1000
+		log.Infof("amount of rows to handle in each iteration is reduced to 1000 in adding unique key scenes")
+	}
+
 	return nil
 }
 
