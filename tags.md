@@ -4,4 +4,4 @@
 - `by default, keep auto-increment with original table`
 - `allow skip-strict-mode`
 - `allow add unique key safety`
-
+- `add analyze table operation after row copy complete`
