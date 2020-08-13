@@ -218,6 +218,7 @@ type MigrationContext struct {
 	// AllowConflictDataDiscardPercent int
 
 	IsAddUniqueKey	bool
+	SkipAnalyze 	bool
 }
 
 type ContextConfig struct {

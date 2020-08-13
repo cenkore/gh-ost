@@ -406,6 +406,21 @@ func (this *Migrator) Migrate() (err error) {
 	if err := this.hooksExecutor.onRowCopyComplete(); err != nil {
 		return err
 	}
+
+	if err := this.applier.ShowIndexOnGhostTable(); err != nil {
+		return err
+	}
+	if !this.migrationContext.SkipAnalyze {
+		// add table analyze operation after row copy complete
+		if err := this.applier.Analyze(); err != nil {
+			return err
+		}
+		if err := this.applier.ShowIndexOnGhostTable(); err != nil {
+			return err
+		}
+	}
+	time.Sleep(time.Second * 2 )
+
 	this.printStatus(ForcePrintStatusRule)
 
 	if err := this.hooksExecutor.onBeforeCutOver(); err != nil {
@@ -429,6 +444,15 @@ func (this *Migrator) Migrate() (err error) {
 		return err
 	}
 	log.Infof("Done migrating %s.%s", sql.EscapeName(this.migrationContext.DatabaseName), sql.EscapeName(this.migrationContext.OriginalTableName))
+
+	// test query plan
+	// if err := this.applier.ShowQueryPlan(); err != nil {
+	// 	log.Error(err.Error())
+	// }
+	if err := this.applier.ShowIndexOnNewTable(); err != nil {
+		return err
+	}
+
 	return nil
 }
 

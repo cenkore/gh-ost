@@ -173,6 +173,13 @@ func (this *Applier) ValidateOrDropExistingTables() error {
 
 // CreateGhostTable creates the ghost table on the applier host
 func (this *Applier) CreateGhostTable() error {
+
+	if this.migrationContext.SkipStrictMode {
+		if _, err := sqlutils.ExecNoPrepare(this.db, `SET SESSION SQL_MODE = 'NO_AUTO_CREATE_USER';`); err != nil {
+			return err
+		}
+	}
+
 	query := fmt.Sprintf(`create /* gh-ost */ table %s.%s like %s.%s`,
 		sql.EscapeName(this.migrationContext.DatabaseName),
 		sql.EscapeName(this.migrationContext.GetGhostTableName()),
@@ -186,6 +193,13 @@ func (this *Applier) CreateGhostTable() error {
 	if _, err := sqlutils.ExecNoPrepare(this.db, query); err != nil {
 		return err
 	}
+
+	if this.migrationContext.SkipStrictMode {
+		if _, err := sqlutils.ExecNoPrepare(this.db, `SET SESSION SQL_MODE = 'TRADITIONAL';`); err != nil {
+			return err
+		}
+	}
+
 	log.Infof("Ghost table created")
 	return nil
 }
@@ -202,13 +216,18 @@ func (this *Applier) AlterGhost() error {
 		sql.EscapeName(this.migrationContext.GetGhostTableName()),
 	)
 	if !this.migrationContext.ResetOriginalAutoIncrement {
-		autoIncrement, err := mysql.GetOriginalAutoIncrementValue(this.db, this.migrationContext.DatabaseName, this.migrationContext.OriginalTableName)
+		autoIncrement, err := mysql.GetOriginalAutoIncrementValue(this.db, this.migrationContext.DatabaseName,
+			this.migrationContext.OriginalTableName)
 		if err != nil {
 			log.Errorf("query original table auto_increment value err :%s", err)
 		}
 		if autoIncrement.Valid {
-			log.Infof("got original table auto_increment value is %d, would reset to gho table", autoIncrement.Int64)
-			resetQuery := fmt.Sprintf(`alter /* gh-ost */ table %s.%s AUTO_INCREMENT = %d`,sql.EscapeName(this.migrationContext.DatabaseName), sql.EscapeName(this.migrationContext.GetGhostTableName()), autoIncrement.Int64)
+			log.Infof("got original table auto_increment value is %d, would reset to gho table",
+				autoIncrement.Int64)
+			resetQuery := fmt.Sprintf(`alter /* gh-ost */ table %s.%s AUTO_INCREMENT = %d`,
+				sql.EscapeName(this.migrationContext.DatabaseName),
+				sql.EscapeName(this.migrationContext.GetGhostTableName()),
+				autoIncrement.Int64)
 			_, err := sqlutils.ExecNoPrepare(this.db, resetQuery)
 			if err != nil {
 				log.Errorf("reset auto_increment value failed on gho table, %s",err)
@@ -1029,7 +1048,9 @@ func (this *Applier) buildDMLEventQuery(dmlEvent *binlog.BinlogDMLEvent, seconda
 	switch dmlEvent.DML {
 	case binlog.DeleteDML:
 		{
-			query, uniqueKeyArgs, err := sql.BuildDMLDeleteQuery(dmlEvent.DatabaseName, this.migrationContext.GetGhostTableName(), this.migrationContext.OriginalTableColumns, &this.migrationContext.UniqueKey.Columns, dmlEvent.WhereColumnValues.AbstractValues())
+			query, uniqueKeyArgs, err := sql.BuildDMLDeleteQuery(dmlEvent.DatabaseName, this.migrationContext.GetGhostTableName(),
+				this.migrationContext.OriginalTableColumns, &this.migrationContext.UniqueKey.Columns,
+				dmlEvent.WhereColumnValues.AbstractValues())
 			return append(results, newDmlBuildResult(query, uniqueKeyArgs, -1, err))
 		}
 	case binlog.InsertDML:
@@ -1042,7 +1063,10 @@ func (this *Applier) buildDMLEventQuery(dmlEvent *binlog.BinlogDMLEvent, seconda
 				results = append(results, this.buildDMLEventQuery(dmlEvent,true)...)
 				return results
 			}
-			query, sharedArgs, err := sql.BuildDMLInsertQuery(dmlEvent.DatabaseName, this.migrationContext.GetGhostTableName(), this.migrationContext.OriginalTableColumns, this.migrationContext.SharedColumns, this.migrationContext.MappedSharedColumns, dmlEvent.NewColumnValues.AbstractValues(), this.migrationContext.IsAddUniqueKey)
+			query, sharedArgs, err := sql.BuildDMLInsertQuery(dmlEvent.DatabaseName, this.migrationContext.GetGhostTableName(),
+				this.migrationContext.OriginalTableColumns, this.migrationContext.SharedColumns,
+				this.migrationContext.MappedSharedColumns, dmlEvent.NewColumnValues.AbstractValues(),
+				this.migrationContext.IsAddUniqueKey)
 			return append(results, newDmlBuildResult(query, sharedArgs, 1, err))
 		}
 	case binlog.UpdateDML:
@@ -1054,7 +1078,10 @@ func (this *Applier) buildDMLEventQuery(dmlEvent *binlog.BinlogDMLEvent, seconda
 				results = append(results, this.buildDMLEventQuery(dmlEvent,true)...)
 				return results
 			}
-			query, sharedArgs, uniqueKeyArgs, err := sql.BuildDMLUpdateQuery(dmlEvent.DatabaseName, this.migrationContext.GetGhostTableName(), this.migrationContext.OriginalTableColumns, this.migrationContext.SharedColumns, this.migrationContext.MappedSharedColumns, &this.migrationContext.UniqueKey.Columns, dmlEvent.NewColumnValues.AbstractValues(), dmlEvent.WhereColumnValues.AbstractValues())
+			query, sharedArgs, uniqueKeyArgs, err := sql.BuildDMLUpdateQuery(dmlEvent.DatabaseName, this.migrationContext.GetGhostTableName(),
+				this.migrationContext.OriginalTableColumns, this.migrationContext.SharedColumns,
+				this.migrationContext.MappedSharedColumns, &this.migrationContext.UniqueKey.Columns,
+				dmlEvent.NewColumnValues.AbstractValues(), dmlEvent.WhereColumnValues.AbstractValues())
 			args := sqlutils.Args()
 			args = append(args, sharedArgs...)
 			args = append(args, uniqueKeyArgs...)
@@ -1184,6 +1211,133 @@ func (this *Applier) ApplyDMLEventQueries(dmlEvents [](*binlog.BinlogDMLEvent)) 
 	log.Debugf("ApplyDMLEventQueries() applied %d events in one transaction", len(dmlEvents))
 	return nil
 }
+
+// Analyze apply a query to operate analyze table on the ghost table,
+// to avoid bad table statistics cause queries with bad performance
+func (this *Applier) Analyze() error {
+	query := fmt.Sprintf("analyze table %s.%s", sql.EscapeName(this.migrationContext.DatabaseName),
+		sql.EscapeName(this.migrationContext.GetGhostTableName()))
+
+	log.Infof("analyze table %s.%s",
+		sql.EscapeName(this.migrationContext.DatabaseName),
+		sql.EscapeName(this.migrationContext.GetGhostTableName()),
+	)
+
+	if _, err := sqlutils.ExecNoPrepare(this.db, query); err != nil {
+		return err
+	}
+	log.Infof("Table %s.%s analyzed",sql.EscapeName(this.migrationContext.DatabaseName),
+		sql.EscapeName(this.migrationContext.GetGhostTableName()),)
+	return nil
+}
+
+func (this *Applier) ShowIndexOnGhostTable() error {
+	query := fmt.Sprintf("show index from %s.%s", sql.EscapeName(this.migrationContext.DatabaseName),
+		sql.EscapeName(this.migrationContext.GetGhostTableName()))
+
+	log.Infof("show index from %s.%s",
+		sql.EscapeName(this.migrationContext.DatabaseName),
+		sql.EscapeName(this.migrationContext.GetGhostTableName()),
+	)
+
+	rows, err := this.db.Query(query)
+	if err != nil {
+		return err
+	}
+
+	columns,err := rows.Columns()
+	scanArgs := make([]interface{},len(columns))
+	values := make([]interface{},len(columns))
+
+	for j:= range values{
+		scanArgs[j] = &values[j]
+	}
+
+	records := make(map[string]interface{})
+
+	defer rows.Close()
+	fmt.Printf("%30v|%20v|%10v|\n","Key_name","Column_name","Cardinality")
+	for rows.Next() {
+		err = rows.Scan(scanArgs...)
+		for i,value := range values{
+			if value != nil{
+				records[columns[i]] = string(value.([]byte))
+			}
+		}
+		fmt.Printf("%30v|%20v|%10v|\n", records["Key_name"], records["Column_name"], records["Cardinality"])
+	}
+	return nil
+}
+
+func (this *Applier) ShowIndexOnNewTable() error {
+	query := fmt.Sprintf("show index from %s.%s", sql.EscapeName(this.migrationContext.DatabaseName),
+		sql.EscapeName(this.migrationContext.OriginalTableName))
+
+	log.Infof("show index from %s.%s",
+		sql.EscapeName(this.migrationContext.DatabaseName),
+		sql.EscapeName(this.migrationContext.OriginalTableName),
+	)
+
+	rows, err := this.db.Query(query)
+	if err != nil {
+		return err
+	}
+
+	columns,err := rows.Columns()
+	scanArgs := make([]interface{},len(columns))
+	values := make([]interface{},len(columns))
+
+	for j:= range values{
+		scanArgs[j] = &values[j]
+	}
+
+	records := make(map[string]interface{})
+
+	defer rows.Close()
+	fmt.Printf("%30v|%20v|%10v|\n","Key_name","Column_name","Cardinality")
+	for rows.Next() {
+		err = rows.Scan(scanArgs...)
+		for i,value := range values{
+			if value != nil{
+				records[columns[i]] = string(value.([]byte))
+			}
+		}
+		fmt.Printf("%30v|%20v|%10v|\n", records["Key_name"], records["Column_name"], records["Cardinality"])
+	}
+	return nil
+}
+
+// query plan test
+// func (this *Applier) ShowQueryPlan() error {
+// 	query := "DESC SELECT T1.ScenicSpotID, T2.ShelfId, T2.Level1SaleUnitId, T4.SaleUnitId, T6.PkType, T6.PkID, T6.ProductId  FROM sthdb.prd_scenicspot_shelf t1, sthdb.prd_scenicspot_shelf_level1saleunit t2, sthdb.prd_level1saleunit t3, sthdb.prd_level1saleunit_relation t4, sthdb.prd_sale_unit T5, sthdb.prd_scenicspot_sale_unit_relation T6  WHERE T1.IsActive = 'T' AND T1.Depth = 1 AND T2.IsActive = 'T'  AND T3.IsActive = 'T' AND T4.IsActive = 'T' AND T5.IsActive = 'T' AND T6.IsActive = 'T'  and T1.IsDelete='F'  AND T1.ID = T2.ShelfId AND T2.Level1SaleUnitId = T3.ID AND T3.ID = T4.Level1SaleUnitId AND T4.SaleUnitId = T5.ID AND T5.ID = T6.ScenicspotSaleUnitID  AND T6.PkID IN (30952341,24504592,23949598,31259718,31366503)AND T6.PkType = 1;"
+// 	log.Info("query plan test")
+// 	rows, err := this.db.Query(query)
+// 	if err != nil {
+// 		return err
+// 	}
+//
+// 	columns,err := rows.Columns()
+// 	scanArgs := make([]interface{},len(columns))
+// 	values := make([]interface{},len(columns))
+//
+// 	for j:= range values{
+// 		scanArgs[j] = &values[j]
+// 	}
+//
+// 	records := make(map[string]interface{})
+// 	fmt.Printf("%20v|%10v|%30v|%30v|%10v|\n","table","type","key","ref","rows")
+// 	defer rows.Close()
+// 	for rows.Next() {
+// 		err = rows.Scan(scanArgs...)
+// 		for i,value := range values{
+// 			if value != nil{
+// 				records[columns[i]] = string(value.([]byte))
+// 			}
+// 		}
+// 		fmt.Printf("%20v|%10v|%30v|%30v|%10v|\n", records["table"], records["type"], records["key"],records["ref"], records["rows"])
+// 	}
+// 	return nil
+// }
 
 func (this *Applier) Teardown() {
 	log.Debugf("Tearing down...")
