@@ -1,1 +1,0 @@
-./gh-ost-0813 --host=10.25.90.13 --database="sthdb" --table="prd_sale_unit" --verbose  --alter="noop" --concurrent-rowcount --conf="/usr/local/gh-ost.cnf" --throttle-control-replicas="10.25.90.13:55944" --port=55944 --nice-ratio=0.1 --execute --initially-drop-old-table --skip-analyze

@@ -410,6 +410,9 @@ func (this *Migrator) Migrate() (err error) {
 	if err := this.applier.ShowIndexOnGhostTable(); err != nil {
 		return err
 	}
+	// if err := this.applier.ShowIndexStats(this.migrationContext.GetGhostTableName()); err != nil {
+	// 	return err
+	// }
 	if !this.migrationContext.SkipAnalyze {
 		// add table analyze operation after row copy complete
 		if err := this.applier.Analyze(); err != nil {
@@ -448,6 +451,9 @@ func (this *Migrator) Migrate() (err error) {
 	// test query plan
 	// if err := this.applier.ShowQueryPlan(); err != nil {
 	// 	log.Error(err.Error())
+	// }
+	// if err := this.applier.ShowIndexStats(this.migrationContext.OriginalTableName); err != nil {
+	// 	return err
 	// }
 	if err := this.applier.ShowIndexOnNewTable(); err != nil {
 		return err
