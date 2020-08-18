@@ -413,7 +413,7 @@ func (this *Migrator) Migrate() (err error) {
 	// if err := this.applier.ShowIndexStats(this.migrationContext.GetGhostTableName()); err != nil {
 	// 	return err
 	// }
-	if !this.migrationContext.SkipAnalyze {
+	if !this.migrationContext.SkipAnalyze && !this.migrationContext.TestOnReplica && !this.migrationContext.MigrateOnReplica{
 		// add table analyze operation after row copy complete
 		if err := this.applier.Analyze(); err != nil {
 			return err
