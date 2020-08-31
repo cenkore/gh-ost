@@ -1381,41 +1381,6 @@ func (this *Applier) ShowIndexOnNewTable() error {
 // 	return nil
 // }
 
-// query plan test
-// func (this *Applier) ShowQueryPlan() error {
-// 	query := "DESC SELECT T1.ScenicSpotID, T2.ShelfId, T2.Level1SaleUnitId, T4.SaleUnitId, T6.PkType, T6.PkID, T6.ProductId  FROM sthdb.prd_scenicspot_shelf t1, sthdb.prd_scenicspot_shelf_level1saleunit t2, sthdb.prd_level1saleunit t3, sthdb.prd_level1saleunit_relation t4, sthdb.prd_sale_unit T5, sthdb.prd_scenicspot_sale_unit_relation T6  WHERE T1.IsActive = 'T' AND T1.Depth = 1 AND T2.IsActive = 'T'  AND T3.IsActive = 'T' AND T4.IsActive = 'T' AND T5.IsActive = 'T' AND T6.IsActive = 'T'  and T1.IsDelete='F'  AND T1.ID = T2.ShelfId AND T2.Level1SaleUnitId = T3.ID AND T3.ID = T4.Level1SaleUnitId AND T4.SaleUnitId = T5.ID AND T5.ID = T6.ScenicspotSaleUnitID  AND T6.PkID IN (30952341,24504592,23949598,31259718,31366503)AND T6.PkType = 1;"
-//
-// 	log.Info("query plan test")
-//
-// 	rows, err := this.db.Query(query)
-//
-// 	if err != nil {
-//
-// 		return err
-// 	}
-// 	columns,err := rows.Columns()
-// 	scanArgs := make([]interface{},len(columns))
-// 	values := make([]interface{},len(columns))
-// 	for j:= range values{
-// 		scanArgs[j] = &values[j]
-// 		}
-// 		records := make(map[string]interface{})
-// 		fmt.Printf("%20v|%10v|%30v|%30v|%10v|\n","table","type","key","ref","rows")
-// 		defer rows.Close()
-// 		for rows.Next() {
-// 			err = rows.Scan(scanArgs...)
-//
-// 			for i,value := range values{
-//
-// 				if value != nil{
-//
-// 					records[columns[i]] = string(value.([]byte))
-// 					}
-// 			}
-// 			fmt.Printf("%20v|%10v|%30v|%30v|%10v|\n", records["table"], records["type"], records["key"],records["ref"], records["rows"])
-// 			}
-// 			return nil
-// 		}
 
 func (this *Applier) Teardown() {
 	log.Debugf("Tearing down...")
