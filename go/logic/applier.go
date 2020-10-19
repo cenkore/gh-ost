@@ -973,10 +973,10 @@ func (this *Applier) AtomicCutOverMagicLock(sessionIdChan chan int64, tableLocke
 		sql.EscapeName(this.migrationContext.DatabaseName),
 		sql.EscapeName(this.migrationContext.GetOldTableName()),
 	)
-	if _, err := tx.Exec(query); err != nil {
-		log.Errore(err)
-		// We DO NOT return here because we must `UNLOCK TABLES`!
-	}
+	// if _, err := tx.Exec(query); err != nil {
+	// 	log.Errore(err)
+	// 	// We DO NOT return here because we must `UNLOCK TABLES`!
+	// }
 	dropCutOverSentryTableOnce.Do(func() {
 		if _, err := tx.Exec(query); err != nil {
 			log.Errore(err)
